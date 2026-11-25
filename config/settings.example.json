@@ -21,6 +21,7 @@
       "executable": "",
       "working_directory": "",
       "arguments": [],
+      "version_arguments": [],
       "timeout_seconds": 7200
     },
     "march7th": {
@@ -28,6 +29,7 @@
       "executable": "",
       "working_directory": "",
       "arguments": [],
+      "version_arguments": [],
       "timeout_seconds": 7200
     }
   }

@@ -15,3 +15,11 @@ class ExecutionStatus(StrEnum):
     FAILED = "failed"
     UNKNOWN = "unknown"
     INTERRUPTED = "interrupted"
+
+
+class AdapterExecutionStatus(StrEnum):
+    NOT_CONFIGURED = "not_configured"
+    START_FAILED = "start_failed"
+    SUCCESS = "success"
+    FAILED = "failed"
+    UNKNOWN = "unknown"

@@ -11,7 +11,7 @@ from game_daily_automation.config.loader import (
 
 
 class ConfigLoaderTests(unittest.TestCase):
-    def test_loads_project_settings(self) -> None:
+    def test_loads_project_settings_and_tool_arguments(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "settings.json"
             path.write_text(json.dumps({
@@ -19,8 +19,12 @@ class ConfigLoaderTests(unittest.TestCase):
                 "execution": {"retry_max_attempts": 2, "retry_delay_seconds": 75},
                 "storage": {"database_path": "state.sqlite3", "log_directory": "logs"},
                 "games": {
-                    "bettergi": {"executable": "", "arguments": []},
-                    "march7th": {"executable": "", "arguments": []},
+                    "bettergi": {
+                        "executable": "C:/Tools/BetterGI.exe",
+                        "arguments": ["--verified-arg"],
+                        "version_arguments": ["--verified-version-arg"],
+                    },
+                    "march7th": {"executable": "C:/Tools/m7a.exe"},
                 },
             }), encoding="utf-8")
             config = load_config(path)
@@ -28,7 +32,11 @@ class ConfigLoaderTests(unittest.TestCase):
             self.assertEqual(config.execution.retry_max_attempts, 2)
             self.assertEqual(config.execution.retry_delay_seconds, 75)
             self.assertEqual(config.storage.database_path, "state.sqlite3")
-            self.assertEqual(config.bettergi.arguments, ())
+            self.assertEqual(config.bettergi.arguments, ("--verified-arg",))
+            self.assertEqual(
+                config.bettergi.version_arguments, ("--verified-version-arg",)
+            )
+            self.assertEqual(config.march7th.arguments, ())
 
     def test_missing_file_has_clear_error(self) -> None:
         with self.assertRaisesRegex(ConfigFileNotFoundError, "not found"):
