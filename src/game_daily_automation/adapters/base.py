@@ -58,6 +58,8 @@ class ConfiguredGameAdapter:
             error = "Adapter is disabled in configuration."
         elif configured and not exists:
             error = f"Executable does not exist or is not a file: {executable}"
+        elif exists and self._working_directory() and not Path(self._working_directory()).is_dir():
+            error = f"Working directory does not exist or is not a directory: {self._working_directory()}"
         elif exists and self._config.version_arguments:
             probe = self._process_runner.run(
                 executable,

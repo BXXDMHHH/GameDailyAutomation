@@ -63,6 +63,7 @@ class GameToolConfig:
     executable: str = ""
     working_directory: str = ""
     arguments: tuple[str, ...] = ()
+    version_arguments: tuple[str, ...] = ()
     timeout_seconds: int = 7200
 
 
@@ -110,17 +111,27 @@ def _positive_int(data: dict[str, Any], key: str, default: int, section: str) ->
     return value
 
 
+def _string_array(data: dict[str, Any], key: str, section: str) -> tuple[str, ...]:
+    value = data.get(key, [])
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ConfigValidationError(f"'{section}.{key}' must be an array of strings.")
+    return tuple(value)
+
+
 def _game_tool(data: dict[str, Any], name: str) -> GameToolConfig:
     section = f"games.{name}"
-    _keys(data, {"enabled", "executable", "working_directory", "arguments", "timeout_seconds"}, section)
-    arguments = data.get("arguments", [])
-    if not isinstance(arguments, list) or not all(isinstance(arg, str) for arg in arguments):
-        raise ConfigValidationError(f"'{section}.arguments' must be an array of strings.")
+    _keys(
+        data,
+        {"enabled", "executable", "working_directory", "arguments",
+         "version_arguments", "timeout_seconds"},
+        section,
+    )
     return GameToolConfig(
         enabled=_boolean(data, "enabled", True, section),
         executable=_string(data, "executable", "", section),
         working_directory=_string(data, "working_directory", "", section),
-        arguments=tuple(arguments),
+        arguments=_string_array(data, "arguments", section),
+        version_arguments=_string_array(data, "version_arguments", section),
         timeout_seconds=_positive_int(data, "timeout_seconds", 7200, section),
     )
 
