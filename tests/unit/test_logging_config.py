@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import logging
 import tempfile
 import unittest
@@ -22,9 +23,10 @@ class LoggingConfigTests(unittest.TestCase):
 
     def test_writes_to_console_and_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
+            log_directory = Path(temp_dir) / "logs"
             config_file = Path(temp_dir) / "settings.json"
             config_file.write_text(
-                '{"storage":{"log_directory":"' + str(Path(temp_dir) / "logs") + '"}}',
+                json.dumps({"storage": {"log_directory": str(log_directory)}}),
                 encoding="utf-8",
             )
             config = load_config(config_file)
@@ -36,7 +38,7 @@ class LoggingConfigTests(unittest.TestCase):
                     handler.flush()
 
             self.assertIn("foundation-test-message", console.getvalue())
-            log_file = Path(temp_dir) / "logs" / "gamedaily.log"
+            log_file = log_directory / "gamedaily.log"
             self.assertTrue(log_file.exists())
             self.assertIn("foundation-test-message", log_file.read_text(encoding="utf-8"))
 
