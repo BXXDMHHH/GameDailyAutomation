@@ -24,7 +24,7 @@ Windows 本地游戏每日任务自动调度器。V1.0 通过外部适配器串�
 
 ## 开发环境
 
-要求 Python 3.12 或更高版本。项目基础阶段仅使用 Python 标准库，不需要安装运行时第三方依赖。
+要求 Python 3.12 或更高版本。基础工程仅使用 Python 标准库，不需要安装运行时第三方依赖。
 
 在 Windows PowerShell 中执行：
 
@@ -33,11 +33,11 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e .
-Copy-Item config/config.example.json config/config.json
-python -m gamedaily --config config/config.json
-python -m unittest discover -s tests -v
+Copy-Item config/settings.example.json config/settings.json
+python -m game_daily_automation --config config/settings.json
+python -m unittest discover -s tests/unit -v
 ```
 
-配置文件缺失时，程序会给出明确错误。个人配置文件 config/config.json 不纳入 Git；请从示例文件复制后再修改。相对路径以项目根目录为基准。
+配置文件缺失或格式错误时，程序会给出明确提示。个人配置 config/settings.json 不纳入 Git。相对运行数据路径默认使用 %LOCALAPPDATA%/GameDailyAutomation，避免将数据库和日志写入源码目录。
 
-当前入口只验证配置并初始化控制台/文件日志，不会启动 BetterGI、March7th 或任何游戏任务。
+当前入口只加载配置并初始化控制台/文件日志，不会启动 BetterGI、March7th 或任何游戏任务。

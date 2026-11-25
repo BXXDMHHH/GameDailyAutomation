@@ -7,8 +7,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from gamedaily.config import AppConfig, LoggingConfig, PathsConfig, RetryConfig
-from gamedaily.logging_config import LOGGER_NAME, configure_logging
+from game_daily_automation.config.loader import load_config
+from game_daily_automation.infrastructure.logging_config import (
+    LOGGER_NAME, configure_logging,
+)
 
 
 class LoggingConfigTests(unittest.TestCase):
@@ -20,11 +22,12 @@ class LoggingConfigTests(unittest.TestCase):
 
     def test_writes_to_console_and_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            config = AppConfig(
-                logging=LoggingConfig(level="INFO", file="logs/test.log"),
-                retry=RetryConfig(), paths=PathsConfig(), base_dir=root,
+            config_file = Path(temp_dir) / "settings.json"
+            config_file.write_text(
+                '{"storage":{"log_directory":"' + str(Path(temp_dir) / "logs") + '"}}',
+                encoding="utf-8",
             )
+            config = load_config(config_file)
             console = io.StringIO()
             with patch("sys.stderr", console):
                 logger = configure_logging(config)
@@ -33,7 +36,7 @@ class LoggingConfigTests(unittest.TestCase):
                     handler.flush()
 
             self.assertIn("foundation-test-message", console.getvalue())
-            log_file = root / "logs" / "test.log"
+            log_file = Path(temp_dir) / "logs" / "gamedaily.log"
             self.assertTrue(log_file.exists())
             self.assertIn("foundation-test-message", log_file.read_text(encoding="utf-8"))
 

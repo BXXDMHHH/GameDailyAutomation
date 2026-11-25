@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gamedaily.main import main
+from game_daily_automation.main import main
 
 
 class MainTests(unittest.TestCase):

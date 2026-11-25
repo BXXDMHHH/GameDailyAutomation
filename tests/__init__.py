@@ -1,1 +1,1 @@
-"""Unit tests for Game Daily Automation."""
+"""Test suite package."""

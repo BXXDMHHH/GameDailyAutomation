@@ -1,29 +1,16 @@
-"""Small, dependency-free domain data models."""
+"""Dependency-free domain data models."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from enum import StrEnum
 
-
-class Game(StrEnum):
-    GENSHIN_IMPACT = "genshin_impact"
-    HONKAI_STAR_RAIL = "honkai_star_rail"
-
-
-class ExecutionStatus(StrEnum):
-    PENDING = "pending"
-    RUNNING = "running"
-    SUCCESS = "success"
-    FAILED = "failed"
-    UNKNOWN = "unknown"
-    INTERRUPTED = "interrupted"
+from game_daily_automation.domain.enums import ExecutionStatus, GameKey
 
 
 @dataclass(frozen=True, slots=True)
 class ExecutionAttempt:
-    game: Game
+    game: GameKey
     attempt_number: int
     status: ExecutionStatus
     started_at: datetime | None = None

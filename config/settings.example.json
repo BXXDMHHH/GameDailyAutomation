@@ -1,0 +1,34 @@
+{
+  "schedule": {
+    "time": "17:00",
+    "timezone": "local",
+    "run_on_logon": true,
+    "run_on_unlock": true,
+    "wake_to_run": true
+  },
+  "execution": {
+    "wait_for_unlocked_session": true,
+    "retry_max_attempts": 2,
+    "retry_delay_seconds": 60
+  },
+  "storage": {
+    "database_path": "%LOCALAPPDATA%/GameDailyAutomation/data.sqlite3",
+    "log_directory": "%LOCALAPPDATA%/GameDailyAutomation/logs"
+  },
+  "games": {
+    "bettergi": {
+      "enabled": true,
+      "executable": "",
+      "working_directory": "",
+      "arguments": [],
+      "timeout_seconds": 7200
+    },
+    "march7th": {
+      "enabled": true,
+      "executable": "",
+      "working_directory": "",
+      "arguments": [],
+      "timeout_seconds": 7200
+    }
+  }
+}

@@ -1,5 +1,0 @@
-{
-  "logging": {"level": "INFO", "file": "logs/gamedaily.log"},
-  "retry": {"interval_seconds": 60},
-  "paths": {"data_dir": "data", "logs_dir": "logs"}
-}

@@ -1,28 +1,13 @@
-"""Application entry point for the project foundation."""
+"""Application bootstrap; does not execute game tasks."""
 
 from __future__ import annotations
 
-import argparse
 import sys
 from collections.abc import Sequence
-from pathlib import Path
 
-from gamedaily.config import ConfigError, load_config
-from gamedaily.logging_config import configure_logging
-
-
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="gamedaily",
-        description="Game Daily Automation foundation (no game tasks are run yet).",
-    )
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=Path("config/config.json"),
-        help="Path to the JSON configuration file (default: config/config.json).",
-    )
-    return parser
+from game_daily_automation.cli import build_parser
+from game_daily_automation.config.loader import ConfigError, load_config
+from game_daily_automation.infrastructure.logging_config import configure_logging
 
 
 def main(argv: Sequence[str] | None = None) -> int:

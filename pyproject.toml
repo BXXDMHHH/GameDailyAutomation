@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "game-daily-automation"
 version = "0.1.0"
-description = "Local Windows automation foundation for daily game tasks."
+description = "Windows local daily game task automation."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
@@ -15,3 +15,4 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["game_daily_automation*"]

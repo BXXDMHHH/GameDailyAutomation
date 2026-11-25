@@ -9,13 +9,12 @@ htmlcov/
 .venv/
 venv/
 ENV/
-config/config.json
+config/settings.json
 .env
 .env.*
-data/*
-!data/.gitkeep
-logs/*
-!logs/.gitkeep
+*.sqlite3
+*.db
+*.log
 .vscode/
 .idea/
 .DS_Store
