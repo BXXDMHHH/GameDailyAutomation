@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +35,7 @@ class LoggingConfig:
 @dataclass(frozen=True, slots=True)
 class RetryConfig:
     interval_seconds: int = 60
-    max_attempts: int = 2
+    max_attempts: int = field(default=2, init=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,7 +120,7 @@ def load_config(config_path: str | Path) -> AppConfig:
     retry_data = _require_object(root.get("retry", {}), "retry")
     paths_data = _require_object(root.get("paths", {}), "paths")
     _reject_unknown_keys(logging_data, {"level", "file"}, "logging")
-    _reject_unknown_keys(retry_data, {"interval_seconds", "max_attempts"}, "retry")
+    _reject_unknown_keys(retry_data, {"interval_seconds"}, "retry")
     _reject_unknown_keys(paths_data, {"data_dir", "logs_dir"}, "paths")
 
     level = _string(logging_data, "level", "INFO", "logging").upper()
@@ -134,8 +134,7 @@ def load_config(config_path: str | Path) -> AppConfig:
         file=_string(logging_data, "file", "logs/gamedaily.log", "logging"),
     )
     retry = RetryConfig(
-        interval_seconds=_positive_int(retry_data, "interval_seconds", 60, "retry"),
-        max_attempts=_positive_int(retry_data, "max_attempts", 2, "retry"),
+        interval_seconds=_positive_int(retry_data, "interval_seconds", 60, "retry")
     )
     paths = PathsConfig(
         data_dir=_string(paths_data, "data_dir", "data", "paths"),

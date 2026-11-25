@@ -41,9 +41,18 @@ class LoadConfigTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_file = Path(temp_dir) / "config.json"
             config_file.write_text(
-                json.dumps({"retry": {"max_attempts": 0}}), encoding="utf-8"
+                json.dumps({"retry": {"interval_seconds": 0}}), encoding="utf-8"
             )
             with self.assertRaisesRegex(ConfigValidationError, "positive integer"):
+                load_config(config_file)
+
+    def test_retry_attempt_limit_cannot_be_overridden(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "config.json"
+            config_file.write_text(
+                json.dumps({"retry": {"max_attempts": 5}}), encoding="utf-8"
+            )
+            with self.assertRaisesRegex(ConfigValidationError, "Unknown key"):
                 load_config(config_file)
 
     def test_unknown_key_is_rejected_to_catch_typos(self) -> None:
