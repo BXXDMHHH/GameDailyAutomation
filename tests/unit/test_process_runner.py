@@ -44,7 +44,13 @@ class ProcessRunnerTests(unittest.TestCase):
             ("partial", "err"),
         ]
         popen.return_value = process
-        with patch("game_daily_automation.infrastructure.process_runner.os.killpg"):
+        # os.killpg does not exist on Windows. create=True lets this test
+        # emulate the POSIX-only API while keeping the platform-independent
+        # production code unchanged.
+        with patch(
+            "game_daily_automation.infrastructure.process_runner.os.killpg",
+            create=True,
+        ):
             result = ProcessRunner(cleanup_timeout_seconds=0.01).run(
                 "tool.exe", [], timeout_seconds=1
             )
