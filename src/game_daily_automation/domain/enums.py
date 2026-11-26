@@ -22,4 +22,5 @@ class AdapterExecutionStatus(StrEnum):
     START_FAILED = "start_failed"
     SUCCESS = "success"
     FAILED = "failed"
+    TIMEOUT = "timeout"
     UNKNOWN = "unknown"
