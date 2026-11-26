@@ -1,1 +1,1 @@
-"""Integration tests requiring explicit opt-in in later stages."""
+"""Integration tests for the daily automation workflow."""
