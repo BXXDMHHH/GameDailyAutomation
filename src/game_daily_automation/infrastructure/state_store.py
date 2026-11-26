@@ -182,6 +182,11 @@ class SQLiteStateStore:
                    VALUES(?, 'pending', ?, ?) ON CONFLICT(execution_date) DO NOTHING""",
                 (day, now, now),
             )
+            daily_row = connection.execute(
+                "SELECT status FROM daily_tasks WHERE execution_date=?", (day,)
+            ).fetchone()
+            if daily_row and daily_row["status"] == ExecutionStatus.SUCCESS.value:
+                raise StatePersistenceError(f"Daily task already completed on {day}; further runs blocked")
             rows = connection.execute(
                 """SELECT attempt_number,status FROM game_executions
                    WHERE execution_date=? AND game_name=? ORDER BY attempt_number""",
@@ -249,11 +254,17 @@ class SQLiteStateStore:
                    WHERE id=?""",
                 (status.value, now, error_message, process_id, return_code, row["id"]),
             )
-            all_rows = connection.execute(
-                "SELECT status FROM game_executions WHERE execution_date=?",
-                (day,),
+            latest_rows = connection.execute(
+                """SELECT e.status FROM game_executions AS e
+                   JOIN (
+                       SELECT game_name, MAX(attempt_number) AS latest_attempt
+                       FROM game_executions WHERE execution_date=? GROUP BY game_name
+                   ) AS latest
+                   ON e.game_name=latest.game_name AND e.attempt_number=latest.latest_attempt
+                   WHERE e.execution_date=?""",
+                (day, day),
             ).fetchall()
-            statuses = {item["status"] for item in all_rows}
+            statuses = {item["status"] for item in latest_rows}
             if ExecutionStatus.UNKNOWN.value in statuses:
                 daily_status = ExecutionStatus.UNKNOWN.value
             elif ExecutionStatus.INTERRUPTED.value in statuses:
