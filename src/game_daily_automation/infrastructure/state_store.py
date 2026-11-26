@@ -260,19 +260,52 @@ class SQLiteStateStore:
                 daily_status = ExecutionStatus.INTERRUPTED.value
             elif ExecutionStatus.FAILED.value in statuses:
                 daily_status = ExecutionStatus.FAILED.value
-            elif statuses and all(value == ExecutionStatus.SUCCESS.value for value in statuses):
-                daily_status = ExecutionStatus.SUCCESS.value
             else:
+                # A single game's success must not imply the whole daily sequence succeeded.
                 daily_status = ExecutionStatus.RUNNING.value
             connection.execute(
                 "UPDATE daily_tasks SET status=?, updated_at=?, error_message=? WHERE execution_date=?",
                 (daily_status, now, error_message, day),
             )
 
+    def complete_daily_task(
+        self, execution_date: date | str, *, required_games: tuple[str, ...] = ("bettergi", "march7th")
+    ) -> None:
+        """Mark the daily sequence successful only after every required game succeeded."""
+        day = self._date(execution_date)
+        if not required_games:
+            raise ValueError("required_games cannot be empty")
+        for game in required_games:
+            self._validate_game(game)
+        now = self._now()
+        with self._transaction() as connection:
+            row = connection.execute(
+                "SELECT status FROM daily_tasks WHERE execution_date=?", (day,)
+            ).fetchone()
+            if row is None:
+                raise StatePersistenceError(f"No daily task exists for {day}")
+            for game in required_games:
+                latest = connection.execute(
+                    """SELECT status FROM game_executions WHERE execution_date=? AND game_name=?
+                       ORDER BY attempt_number DESC LIMIT 1""",
+                    (day, game),
+                ).fetchone()
+                if latest is None or latest["status"] != ExecutionStatus.SUCCESS.value:
+                    raise StatePersistenceError(
+                        f"Cannot complete daily task: {game} has not succeeded"
+                    )
+            connection.execute(
+                "UPDATE daily_tasks SET status='success', updated_at=?, error_message=NULL WHERE execution_date=?",
+                (now, day),
+            )
+
     def recover_interrupted(self) -> int:
         """Convert stale RUNNING attempts to UNKNOWN; never schedule a retry."""
         now = self._now()
         with self._transaction() as connection:
+            running_count = connection.execute(
+                "SELECT COUNT(*) FROM game_executions WHERE status='running'"
+            ).fetchone()[0]
             rows = connection.execute(
                 "SELECT DISTINCT execution_date FROM game_executions WHERE status='running'"
             ).fetchall()
@@ -290,7 +323,7 @@ class SQLiteStateStore:
                        WHERE execution_date=?""",
                     (now, row["execution_date"]),
                 )
-            return connection.execute("SELECT changes()").fetchone()[0] if rows else 0
+            return running_count
 
     @staticmethod
     def _validate_game(game_name: str) -> None:
