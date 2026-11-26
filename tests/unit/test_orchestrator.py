@@ -64,6 +64,24 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(orchestrator.run_if_due(now=datetime(2026, 11, 26, 17, 1)).status, ExecutionStatus.PENDING)
         self.assertEqual(self.events, [])
 
+    def test_lock_after_bettergi_prevents_march7th_start(self):
+        day = datetime(2026, 11, 26, 18, 0)
+        session_checks = iter([True, False])
+        retry = RetryManager(
+            self.store, retry_delay_seconds=0, sleep=lambda _: None,
+            is_session_unlocked=lambda: next(session_checks),
+        )
+        orchestrator = DailyOrchestrator(
+            self.store,
+            self.adapter("bettergi", AdapterExecutionStatus.SUCCESS),
+            self.adapter("march7th", AdapterExecutionStatus.SUCCESS),
+            retry_manager=retry,
+            is_session_unlocked=lambda: True,
+        )
+        result = orchestrator.run_if_due(now=day)
+        self.assertEqual(result.status, ExecutionStatus.INTERRUPTED)
+        self.assertEqual([event[1] for event in self.events if event[0] == "start"], ["bettergi"])
+
     def test_one_game_failure_does_not_block_other_game(self):
         result = self.orchestrator(
             self.adapter("bettergi", AdapterExecutionStatus.FAILED, AdapterExecutionStatus.FAILED),
