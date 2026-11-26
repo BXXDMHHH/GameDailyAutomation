@@ -16,6 +16,10 @@ from game_daily_automation.infrastructure.logging_config import (
 
 class LoggingConfigTests(unittest.TestCase):
     def tearDown(self) -> None:
+        self._close_logger_handlers()
+
+    @staticmethod
+    def _close_logger_handlers() -> None:
         logger = logging.getLogger(LOGGER_NAME)
         for handler in logger.handlers[:]:
             logger.removeHandler(handler)
@@ -31,16 +35,25 @@ class LoggingConfigTests(unittest.TestCase):
             )
             config = load_config(config_file)
             console = io.StringIO()
-            with patch("sys.stderr", console):
-                logger = configure_logging(config)
-                logger.info("foundation-test-message")
-                for handler in logger.handlers:
-                    handler.flush()
+            try:
+                with patch("sys.stderr", console):
+                    logger = configure_logging(config)
+                    logger.info("foundation-test-message")
+                    for handler in logger.handlers:
+                        handler.flush()
 
-            self.assertIn("foundation-test-message", console.getvalue())
-            log_file = log_directory / "gamedaily.log"
-            self.assertTrue(log_file.exists())
-            self.assertIn("foundation-test-message", log_file.read_text(encoding="utf-8"))
+                self.assertIn("foundation-test-message", console.getvalue())
+                log_file = log_directory / "gamedaily.log"
+                self.assertTrue(log_file.exists())
+                self.assertIn(
+                    "foundation-test-message",
+                    log_file.read_text(encoding="utf-8"),
+                )
+            finally:
+                # Windows cannot remove a temporary directory while its log
+                # file is still open. Close handlers before TemporaryDirectory
+                # performs its cleanup (tearDown runs too late for this).
+                self._close_logger_handlers()
 
 
 if __name__ == "__main__":
