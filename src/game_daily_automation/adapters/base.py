@@ -62,8 +62,7 @@ class ConfiguredGameAdapter:
             error = f"Working directory does not exist or is not a directory: {self._working_directory()}"
         elif exists and self._config.version_arguments:
             probe = self._process_runner.run(
-                executable,
-                self._config.version_arguments,
+                executable, self._config.version_arguments,
                 working_directory=self._working_directory(),
                 timeout_seconds=min(self._config.timeout_seconds, 30),
             )
@@ -77,34 +76,27 @@ class ConfiguredGameAdapter:
                 error = f"Configured version probe returned exit code {probe.return_code}."
 
         return AdapterAvailability(
-            game=self._game_key,
-            executable_path=str(executable) if configured else "",
-            executable_exists=exists,
-            configured=configured,
+            game=self._game_key, executable_path=str(executable) if configured else "",
+            executable_exists=exists, configured=configured,
             version_probe_configured=bool(self._config.version_arguments),
-            version_probe_return_code=probe_code,
-            version_output=probe_output,
-            error=error,
+            version_probe_return_code=probe_code, version_output=probe_output, error=error,
         )
 
     def execute_daily(self) -> AdapterExecutionResult:
         availability = self.check_available()
         if not availability.available:
             return AdapterExecutionResult(
-                game=self._game_key,
-                status=AdapterExecutionStatus.NOT_CONFIGURED,
+                game=self._game_key, status=AdapterExecutionStatus.NOT_CONFIGURED,
                 detail=availability.error or "Executable path is not configured.",
             )
         if not self._config.arguments:
             return AdapterExecutionResult(
-                game=self._game_key,
-                status=AdapterExecutionStatus.NOT_CONFIGURED,
+                game=self._game_key, status=AdapterExecutionStatus.NOT_CONFIGURED,
                 detail="Daily-task arguments are empty; configure only after local verification.",
             )
 
         process_result = self._process_runner.run(
-            self._config.executable,
-            self._config.arguments,
+            self._config.executable, self._config.arguments,
             working_directory=self._working_directory(),
             timeout_seconds=self._config.timeout_seconds,
         )
@@ -112,42 +104,31 @@ class ConfiguredGameAdapter:
 
     def identify_result(self, process_result: ProcessResult) -> AdapterExecutionResult:
         if not process_result.started:
-            return AdapterExecutionResult(
-                game=self._game_key,
-                status=AdapterExecutionStatus.START_FAILED,
-                detail=process_result.start_error or "Process could not be started.",
+            status = AdapterExecutionStatus.START_FAILED
+            detail = process_result.start_error or "Process could not be started."
+        elif process_result.timed_out:
+            status = AdapterExecutionStatus.TIMEOUT
+            detail = "Process timed out; verify task state before any recovery action."
+        elif process_result.execution_error:
+            status = AdapterExecutionStatus.UNKNOWN
+            detail = process_result.execution_error
+        elif self._result_classifier is None:
+            status = AdapterExecutionStatus.UNKNOWN
+            detail = (
+                "No verified result classifier is configured. "
+                "Process exit code alone is not treated as task success."
             )
-        if process_result.timed_out:
-            return AdapterExecutionResult(
-                game=self._game_key,
-                status=AdapterExecutionStatus.UNKNOWN,
-                return_code=process_result.return_code,
-                stdout=process_result.stdout,
-                stderr=process_result.stderr,
-                detail="Process timed out; verify task state and logs before any recovery action.",
-            )
-
-        status = AdapterExecutionStatus.UNKNOWN
-        detail = (
-            "No verified result classifier is configured. "
-            "Process exit code alone is not treated as task success."
-        )
-        if self._result_classifier is not None:
-            classified = self._result_classifier(process_result)
-            if classified not in {
-                AdapterExecutionStatus.SUCCESS,
-                AdapterExecutionStatus.FAILED,
+        else:
+            status = self._result_classifier(process_result)
+            if status not in {
+                AdapterExecutionStatus.SUCCESS, AdapterExecutionStatus.FAILED,
                 AdapterExecutionStatus.UNKNOWN,
             }:
                 raise ValueError("Result classifier returned an unsupported status.")
-            status = classified
             detail = "Classified using the configured tool-specific result classifier."
 
         return AdapterExecutionResult(
-            game=self._game_key,
-            status=status,
-            return_code=process_result.return_code,
-            stdout=process_result.stdout,
-            stderr=process_result.stderr,
-            detail=detail,
+            game=self._game_key, status=status, return_code=process_result.return_code,
+            stdout=process_result.stdout, stderr=process_result.stderr, detail=detail,
+            process_id=process_result.pid, duration_seconds=process_result.duration_seconds,
         )
