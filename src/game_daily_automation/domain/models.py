@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from game_daily_automation.domain.enums import (
     AdapterExecutionStatus, ExecutionStatus, GameKey,
@@ -12,7 +13,7 @@ from game_daily_automation.domain.enums import (
 
 @dataclass(frozen=True, slots=True)
 class ProcessResult:
-    """Transport-neutral outcome captured by the process boundary."""
+    """Transport-neutral outcome captured at the process boundary."""
 
     started: bool
     command: tuple[str, ...]
@@ -21,6 +22,9 @@ class ProcessResult:
     stderr: str = ""
     timed_out: bool = False
     start_error: str | None = None
+    execution_error: str | None = None
+    pid: int | None = None
+    duration_seconds: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,3 +69,5 @@ class AdapterExecutionResult:
     stdout: str = ""
     stderr: str = ""
     detail: str | None = None
+    process_id: int | None = None
+    duration_seconds: float = 0.0
