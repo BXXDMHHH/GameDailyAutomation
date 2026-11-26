@@ -310,6 +310,51 @@ class SQLiteStateStore:
                 (now, day),
             )
 
+    def resolve_unknown(
+        self,
+        execution_date: date | str,
+        game_name: str,
+        *,
+        confirmed_status: ExecutionStatus,
+        evidence_note: str,
+        safe_to_retry: bool = False,
+    ) -> None:
+        """Record a human-reviewed UNKNOWN outcome with an auditable evidence note."""
+        if confirmed_status not in {ExecutionStatus.SUCCESS, ExecutionStatus.FAILED}:
+            raise ValueError("confirmed_status must be SUCCESS or FAILED")
+        if not evidence_note or not evidence_note.strip():
+            raise ValueError("evidence_note is required for human confirmation")
+        day = self._date(execution_date)
+        self._validate_game(game_name)
+        note = f"Human confirmed {confirmed_status.value}: {evidence_note.strip()}"
+        if confirmed_status == ExecutionStatus.FAILED and safe_to_retry:
+            note += " [human_safe_to_retry=true]"
+        now = self._now()
+        with self._transaction() as connection:
+            row = connection.execute(
+                """SELECT id FROM game_executions
+                   WHERE execution_date=? AND game_name=? AND status='unknown'
+                   ORDER BY attempt_number DESC LIMIT 1""",
+                (day, game_name),
+            ).fetchone()
+            if row is None:
+                raise StatePersistenceError(f"No UNKNOWN attempt exists for {game_name} on {day}")
+            connection.execute(
+                """UPDATE game_executions SET status=?, finished_at=?,
+                   error_message=? WHERE id=?""",
+                (confirmed_status.value, now, note, row["id"]),
+            )
+            daily_status = (
+                ExecutionStatus.RUNNING.value
+                if confirmed_status == ExecutionStatus.SUCCESS
+                else ExecutionStatus.FAILED.value
+            )
+            connection.execute(
+                """UPDATE daily_tasks SET status=?, updated_at=?, error_message=?
+                   WHERE execution_date=?""",
+                (daily_status, now, note, day),
+            )
+
     def recover_interrupted(self) -> int:
         """Convert stale RUNNING attempts to UNKNOWN; never schedule a retry."""
         now = self._now()
