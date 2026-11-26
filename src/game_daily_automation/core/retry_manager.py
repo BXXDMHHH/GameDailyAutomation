@@ -7,7 +7,6 @@ from dataclasses import dataclass
 
 from game_daily_automation.domain.enums import AdapterExecutionStatus, ExecutionStatus
 from game_daily_automation.domain.models import AdapterExecutionResult
-from game_daily_automation.exceptions import StatePersistenceError
 from game_daily_automation.infrastructure.state_store import SQLiteStateStore
 
 
@@ -20,7 +19,7 @@ class GameRunSummary:
 
 
 class RetryManager:
-    """Runs at most two attempts; retry requires explicit safety evidence."""
+    """Runs at most two attempts; retry requires explicit safety and an unlocked desktop."""
 
     def __init__(
         self,
@@ -30,6 +29,7 @@ class RetryManager:
         retry_delay_seconds: int = 60,
         sleep: Callable[[float], None] = time.sleep,
         is_safe_to_retry: Callable[[AdapterExecutionResult], bool] | None = None,
+        is_session_unlocked: Callable[[], bool] | None = None,
     ) -> None:
         if max_attempts != 2:
             raise ValueError("Project policy fixes max_attempts at 2")
@@ -40,6 +40,7 @@ class RetryManager:
         self._delay = retry_delay_seconds
         self._sleep = sleep
         self._is_safe = is_safe_to_retry or (lambda _result: False)
+        self._is_unlocked = is_session_unlocked or (lambda: True)
 
     @staticmethod
     def _map_status(status: AdapterExecutionStatus) -> ExecutionStatus:
@@ -52,6 +53,12 @@ class RetryManager:
         }:
             return ExecutionStatus.FAILED
         return ExecutionStatus.UNKNOWN
+
+    def _session_ready(self) -> bool:
+        try:
+            return bool(self._is_unlocked())
+        except Exception:
+            return False
 
     def run_game(self, execution_date, game_name: str, adapter) -> GameRunSummary:
         existing = self._store.get_game_state(execution_date, game_name)
@@ -75,6 +82,12 @@ class RetryManager:
         last_status = ExecutionStatus.UNKNOWN
         attempts = existing.attempt_count if existing else 0
         while attempts < self._max_attempts:
+            # Recheck immediately before every external side effect, including retries.
+            if not self._session_ready():
+                return GameRunSummary(
+                    game_name, ExecutionStatus.INTERRUPTED, attempts,
+                    "Interactive desktop is locked or unavailable; execution deferred until unlock.",
+                )
             safe_retry = attempts > 0
             attempt_number = self._store.start_attempt(
                 execution_date, game_name, safe_to_retry=safe_retry,
@@ -84,7 +97,6 @@ class RetryManager:
             try:
                 result = adapter.execute_daily()
             except Exception as exc:
-                # A raised adapter exception does not prove whether the external task ran.
                 self._store.finish_attempt(
                     execution_date, game_name, ExecutionStatus.UNKNOWN,
                     error_message=f"Adapter raised {type(exc).__name__}: {exc}",

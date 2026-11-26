@@ -44,8 +44,10 @@ class DailyOrchestrator:
             GameKey.BETTERGI.value: bettergi_adapter,
             GameKey.MARCH7TH.value: march7th_adapter,
         }
-        self._retry = retry_manager or RetryManager(state_store)
         self._unlocked = is_session_unlocked or (lambda: True)
+        self._retry = retry_manager or RetryManager(
+            state_store, is_session_unlocked=self._unlocked
+        )
 
     def run_if_due(self, *, now: datetime | None = None) -> DailyRunSummary:
         current = now or datetime.now().astimezone()

@@ -1,13 +1,21 @@
-"""Application bootstrap; does not execute game tasks."""
+"""Windows application bootstrap and one-shot scheduled execution."""
 
 from __future__ import annotations
 
+import logging
 import sys
 from collections.abc import Sequence
 
+from game_daily_automation.adapters import BetterGIAdapter, March7thAdapter
 from game_daily_automation.cli import build_parser
 from game_daily_automation.config.loader import ConfigError, load_config
+from game_daily_automation.core.orchestrator import DailyOrchestrator
+from game_daily_automation.core.retry_manager import RetryManager
 from game_daily_automation.infrastructure.logging_config import configure_logging
+from game_daily_automation.infrastructure.single_instance import SingleInstanceLock
+from game_daily_automation.infrastructure.state_store import SQLiteStateStore
+from game_daily_automation.system.session_guard import InteractiveSessionGuard
+from game_daily_automation.system.windows_session import inspect_windows_session
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -22,7 +30,57 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Unable to initialize logging: {exc}", file=sys.stderr)
         return 2
 
-    logger.info("Game Daily Automation foundation started.")
-    logger.info("Configuration loaded from: %s", args.config.resolve())
-    logger.info("No game tasks are started by this foundation entry point.")
-    return 0
+    if args.check_session:
+        status = inspect_windows_session()
+        print(f"session={status.state.value} session_id={status.session_id} desktop={status.desktop_name or '-'}")
+        if status.detail:
+            print(status.detail)
+        return 0 if status.can_run_interactive_tasks else 3
+
+    if sys.platform != "win32":
+        logger.error("Scheduled game automation is supported only on Windows.")
+        return 3
+
+    lock_path = config.storage.database_file_path.with_suffix(".lock")
+    try:
+        with SingleInstanceLock(lock_path):
+            store = SQLiteStateStore(config.storage.database_file_path)
+            store.initialize()
+            # A prior process may have exited while an attempt was RUNNING.
+            # Convert that ambiguous state to UNKNOWN; never replay it blindly.
+            recovered = store.recover_interrupted()
+            if recovered:
+                logger.warning("Recovered %s stale RUNNING attempt(s) as UNKNOWN for manual evidence review.", recovered)
+
+            guard = InteractiveSessionGuard(logger=logger)
+            if not guard.can_run():
+                logger.info("No game task launched; the next scheduled/logon/unlock trigger will check again.")
+                return 0
+
+            retry = RetryManager(
+                store,
+                retry_delay_seconds=config.execution.retry_delay_seconds,
+                # Safety remains disabled until tool-specific failure evidence
+                # has been verified and explicitly configured.
+                is_session_unlocked=guard.can_run,
+            )
+            orchestrator = DailyOrchestrator(
+                store,
+                BetterGIAdapter(config.bettergi),
+                March7thAdapter(config.march7th),
+                schedule_time=config.schedule.time,
+                retry_manager=retry,
+                is_session_unlocked=guard.can_run,
+            )
+            summary = orchestrator.run_if_due()
+            logger.info(
+                "Daily scheduler finished date=%s status=%s detail=%s",
+                summary.execution_date, summary.status.value, summary.skipped_reason,
+            )
+            for game in summary.games:
+                logger.info("Game result name=%s status=%s attempts=%s detail=%s",
+                            game.game_name, game.status.value, game.attempts, game.detail)
+            return 0
+    except Exception:
+        logger.exception("Scheduler startup or execution failed.")
+        return 1

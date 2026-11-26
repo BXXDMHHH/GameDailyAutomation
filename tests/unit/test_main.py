@@ -21,22 +21,35 @@ class MainTests(unittest.TestCase):
             self.assertEqual(result, 2)
             self.assertIn("not found", stderr.getvalue())
 
-    def test_valid_config_starts_without_running_game_tasks(self) -> None:
+    def test_check_session_does_not_run_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "settings.json"
+            config_file.write_text(json.dumps({"storage": {"log_directory": str(Path(temp_dir) / "logs")}}), encoding="utf-8")
+            from game_daily_automation.system.windows_session import SessionStatus, SessionState
+            try:
+                with patch("game_daily_automation.main.inspect_windows_session",
+                           return_value=SessionStatus(SessionState.LOCKED, 1, "Winlogon")):
+                    with patch("sys.stdout", io.StringIO()):
+                        result = main(["--config", str(config_file), "--check-session"])
+                self.assertEqual(result, 3)
+            finally:
+                logger = logging.getLogger(LOGGER_NAME)
+                for handler in logger.handlers[:]:
+                    logger.removeHandler(handler)
+                    handler.close()
+
+    def test_valid_config_starts_without_running_game_tasks_on_non_windows(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             config_file = root / "settings.json"
-            config_file.write_text(
-                json.dumps({"storage": {"log_directory": str(root / "logs")}}),
-                encoding="utf-8",
-            )
+            config_file.write_text(json.dumps({"storage": {"log_directory": str(root / "logs")}}), encoding="utf-8")
             try:
-                with patch("sys.stderr", io.StringIO()):
-                    result = main(["--config", str(config_file)])
-                self.assertEqual(result, 0)
+                with patch("game_daily_automation.main.sys.platform", "linux"):
+                    with patch("sys.stderr", io.StringIO()):
+                        result = main(["--config", str(config_file)])
+                self.assertEqual(result, 3)
                 self.assertTrue((root / "logs" / "gamedaily.log").exists())
             finally:
-                # main() configures a file handler; release it before the
-                # temporary directory is removed on Windows.
                 logger = logging.getLogger(LOGGER_NAME)
                 for handler in logger.handlers[:]:
                     logger.removeHandler(handler)
