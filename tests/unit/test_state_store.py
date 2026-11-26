@@ -23,6 +23,7 @@ class SQLiteStateStoreTests(unittest.TestCase):
 
     def test_schema_initialization_is_idempotent(self) -> None:
         self.store.initialize()
+        self.store.ensure_daily_task(self.day)
         self.assertEqual(self.store.get_daily_task(self.day)["status"], "pending")
 
     def test_success_is_persisted_and_duplicate_start_blocked(self) -> None:
