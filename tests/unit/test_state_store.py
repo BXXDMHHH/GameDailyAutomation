@@ -31,8 +31,19 @@ class SQLiteStateStoreTests(unittest.TestCase):
         state = self.store.get_game_state(self.day, "bettergi")
         self.assertEqual(state.status, ExecutionStatus.SUCCESS)
         self.assertEqual(state.attempt_count, 1)
+        self.assertEqual(self.store.get_daily_task(self.day)["status"], "running")
         with self.assertRaisesRegex(StatePersistenceError, "already succeeded"):
             self.store.start_attempt(self.day, "bettergi")
+
+    def test_daily_success_requires_both_games(self) -> None:
+        self.store.start_attempt(self.day, "bettergi")
+        self.store.finish_attempt(self.day, "bettergi", ExecutionStatus.SUCCESS)
+        with self.assertRaisesRegex(StatePersistenceError, "march7th"):
+            self.store.complete_daily_task(self.day)
+        self.store.start_attempt(self.day, "march7th")
+        self.store.finish_attempt(self.day, "march7th", ExecutionStatus.SUCCESS)
+        self.store.complete_daily_task(self.day)
+        self.assertEqual(self.store.get_daily_task(self.day)["status"], "success")
 
     def test_two_games_have_independent_state(self) -> None:
         self.store.start_attempt(self.day, "bettergi")
@@ -75,8 +86,6 @@ class SQLiteStateStoreTests(unittest.TestCase):
             recovered.start_attempt(self.day, "bettergi", safe_to_retry=True)
 
     def test_failed_database_open_does_not_claim_success(self) -> None:
-        invalid = SQLiteStateStore(Path(self.temp_dir.name) / "missing-parent" / "state.db")
-        # The store creates parent directories; use a path that is a regular file as a directory.
         blocker = Path(self.temp_dir.name) / "blocker"
         blocker.write_text("not a directory", encoding="utf-8")
         broken = SQLiteStateStore(blocker / "state.db")
