@@ -50,7 +50,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             # Convert that ambiguous state to UNKNOWN; never replay it blindly.
             recovered = store.recover_interrupted()
             if recovered:
-                logger.warning("Recovered %s stale RUNNING attempt(s) as UNKNOWN for manual evidence review.", recovered)
+                logger.warning(
+                    "Recovered %s stale RUNNING attempt(s) as UNKNOWN. "
+                    "No games will launch until the external process state is reviewed.",
+                    recovered,
+                )
+                return 0
+            if store.has_unresolved_recovery():
+                logger.warning(
+                    "A prior crash-recovered attempt is still awaiting evidence review; "
+                    "all new game launches remain blocked."
+                )
+                return 0
 
             guard = InteractiveSessionGuard(logger=logger)
             if not guard.can_run():

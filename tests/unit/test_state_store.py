@@ -83,8 +83,14 @@ class SQLiteStateStoreTests(unittest.TestCase):
         state = recovered.get_game_state(self.day, "bettergi")
         self.assertEqual(state.status, ExecutionStatus.UNKNOWN)
         self.assertIn("restart", state.error_message)
+        self.assertTrue(recovered.has_unresolved_recovery())
         with self.assertRaises(StatePersistenceError):
             recovered.start_attempt(self.day, "bettergi", safe_to_retry=True)
+        recovered.resolve_unknown(
+            self.day, "bettergi", confirmed_status=ExecutionStatus.SUCCESS,
+            evidence_note="Verified the external task completed.",
+        )
+        self.assertFalse(recovered.has_unresolved_recovery())
 
     def test_failed_database_open_does_not_claim_success(self) -> None:
         blocker = Path(self.temp_dir.name) / "blocker"

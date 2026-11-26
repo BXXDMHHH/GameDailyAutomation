@@ -52,6 +52,6 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 - 任务未运行：检查任务计划程序历史记录、当前用户是否登录、Python 路径和配置文件。
 - 锁屏时没有运行：这是预期保护行为；解锁后由 SessionUnlock 或周期触发再次检查。
-- UNKNOWN / INTERRUPTED：查看日志、SQLite 尝试记录和第三方工具状态；完成证据核验后再人工处理，禁止直接删除数据库强制重跑。
+- UNKNOWN / INTERRUPTED：查看日志、SQLite 尝试记录和第三方工具状态；完成证据核验后再人工处理，禁止直接删除数据库强制重跑。若启动时发现遗留 RUNNING，程序会转为 UNKNOWN 并设置全局恢复阻断，在通过状态库 UNKNOWN 确认接口完成人工核验前，不启动任何新游戏任务。程序不会自动终止或猜测遗留第三方进程状态。
 - 重复启动：检查任务计划程序的 IgnoreNew 策略和应用单实例锁文件。
 - Windows API 检测失败：程序按锁屏处理，不会启动桌面任务。

@@ -129,6 +129,17 @@ class SQLiteStateStore:
             ).fetchone()
             return dict(row) if row else None
 
+    def has_unresolved_recovery(self) -> bool:
+        """Block new daily runs while a crash-recovered RUNNING attempt awaits review."""
+        with self._read() as connection:
+            row = connection.execute(
+                """SELECT 1 FROM daily_tasks
+                   WHERE status='unknown'
+                     AND error_message='Recovered after restart; inspect game/process evidence'
+                   LIMIT 1"""
+            ).fetchone()
+            return row is not None
+
     def get_game_state(self, execution_date: date | str, game_name: str) -> GameState | None:
         day = self._date(execution_date)
         self._validate_game(game_name)
