@@ -73,7 +73,9 @@ class DailyOrchestrator:
         if all(item.status == ExecutionStatus.SUCCESS for item in summaries):
             self._store.complete_daily_task(business_date)
             overall = ExecutionStatus.SUCCESS
-        elif any(item.status in {ExecutionStatus.UNKNOWN, ExecutionStatus.INTERRUPTED, ExecutionStatus.RUNNING}
+        elif any(item.status == ExecutionStatus.INTERRUPTED for item in summaries):
+            overall = ExecutionStatus.INTERRUPTED
+        elif any(item.status in {ExecutionStatus.UNKNOWN, ExecutionStatus.RUNNING}
                  for item in summaries):
             overall = ExecutionStatus.UNKNOWN
         else:
