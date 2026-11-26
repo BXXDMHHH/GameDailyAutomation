@@ -234,6 +234,30 @@ class DailyWorkflowIntegrationTests(unittest.TestCase):
         m7 = ScriptedAdapter(GameKey.MARCH7TH, AdapterExecutionStatus.SUCCESS)
         self.assertEqual((bg.calls, m7.calls), (0, 0))
 
+    def test_corrupt_database_blocks_main_before_adapter_construction(self):
+        corrupt = self.root / "corrupt-main.sqlite3"
+        corrupt.write_bytes(b"not a sqlite database")
+        config = self.root / "settings.json"
+        config.write_text(json.dumps({
+            "storage": {
+                "database_path": str(corrupt),
+                "log_directory": str(self.root / "logs"),
+            }
+        }), encoding="utf-8")
+        try:
+            with patch("game_daily_automation.main.sys.platform", "win32"):
+                with patch("game_daily_automation.main.BetterGIAdapter") as bettergi:
+                    with patch("game_daily_automation.main.March7thAdapter") as march7th:
+                        result = main(["--config", str(config)])
+            self.assertEqual(result, 1)
+            bettergi.assert_not_called()
+            march7th.assert_not_called()
+        finally:
+            logger = logging.getLogger(LOGGER_NAME)
+            for handler in logger.handlers[:]:
+                logger.removeHandler(handler)
+                handler.close()
+
     def test_seven_consecutive_days_complete_once_per_date(self):
         bg = ScriptedAdapter(GameKey.BETTERGI, *([AdapterExecutionStatus.SUCCESS] * 7))
         m7 = ScriptedAdapter(GameKey.MARCH7TH, *([AdapterExecutionStatus.SUCCESS] * 7))
