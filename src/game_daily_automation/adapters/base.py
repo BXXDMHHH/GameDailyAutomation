@@ -5,27 +5,28 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any, Protocol
 
 from game_daily_automation.config.loader import GameToolConfig
 from game_daily_automation.domain.enums import AdapterExecutionStatus, GameKey
-from game_daily_automation.domain.models import (
-    AdapterAvailability, AdapterExecutionResult, ProcessResult,
-)
+from game_daily_automation.domain.models import AdapterAvailability, AdapterExecutionResult, ProcessResult
 from game_daily_automation.infrastructure.process_runner import ProcessRunner
 
-ResultClassifier = Callable[[ProcessResult], AdapterExecutionStatus]
+
+class ContextualResultClassifier(Protocol):
+    def begin(self) -> Any: ...
+    def classify(self, result: ProcessResult, context: Any) -> AdapterExecutionStatus: ...
+
+
+ResultClassifier = Callable[[ProcessResult], AdapterExecutionStatus] | ContextualResultClassifier
 
 
 class ConfiguredGameAdapter:
     """Common process mechanics; subclasses supply identity, not global ordering."""
 
-    def __init__(
-        self,
-        game_key: GameKey,
-        config: GameToolConfig,
-        process_runner: ProcessRunner | None = None,
-        result_classifier: ResultClassifier | None = None,
-    ) -> None:
+    def __init__(self, game_key: GameKey, config: GameToolConfig,
+                 process_runner: ProcessRunner | None = None,
+                 result_classifier: ResultClassifier | None = None) -> None:
         self._game_key = game_key
         self._config = config
         self._process_runner = process_runner or ProcessRunner()
@@ -36,10 +37,8 @@ class ConfiguredGameAdapter:
         return self._game_key
 
     def _executable_path(self) -> Path:
-        return (
-            Path(os.path.expandvars(self._config.executable)).expanduser()
-            if self._config.executable else Path()
-        )
+        return (Path(os.path.expandvars(self._config.executable)).expanduser()
+                if self._config.executable else Path())
 
     def _working_directory(self) -> str | None:
         if not self._config.working_directory:
@@ -53,7 +52,6 @@ class ConfiguredGameAdapter:
         probe_code: int | None = None
         probe_output = ""
         error = None
-
         if not self._config.enabled:
             error = "Adapter is disabled in configuration."
         elif configured and not exists:
@@ -74,7 +72,6 @@ class ConfiguredGameAdapter:
                 error = "Configured version probe timed out."
             elif probe.return_code != 0:
                 error = f"Configured version probe returned exit code {probe.return_code}."
-
         return AdapterAvailability(
             game=self._game_key, executable_path=str(executable) if configured else "",
             executable_exists=exists, configured=configured,
@@ -95,14 +92,19 @@ class ConfiguredGameAdapter:
                 detail="Daily-task arguments are empty; configure only after local verification.",
             )
 
+        classifier_context = None
+        begin = getattr(self._result_classifier, "begin", None)
+        if callable(begin):
+            classifier_context = begin()
         process_result = self._process_runner.run(
             self._config.executable, self._config.arguments,
             working_directory=self._working_directory(),
             timeout_seconds=self._config.timeout_seconds,
         )
-        return self.identify_result(process_result)
+        return self.identify_result(process_result, classifier_context=classifier_context)
 
-    def identify_result(self, process_result: ProcessResult) -> AdapterExecutionResult:
+    def identify_result(self, process_result: ProcessResult, *,
+                        classifier_context: Any = None) -> AdapterExecutionResult:
         if not process_result.started:
             status = AdapterExecutionStatus.START_FAILED
             detail = process_result.start_error or "Process could not be started."
@@ -114,19 +116,16 @@ class ConfiguredGameAdapter:
             detail = process_result.execution_error
         elif self._result_classifier is None:
             status = AdapterExecutionStatus.UNKNOWN
-            detail = (
-                "No verified result classifier is configured. "
-                "Process exit code alone is not treated as task success."
-            )
+            detail = ("No verified result classifier is configured. "
+                      "Process exit code alone is not treated as task success.")
         else:
-            status = self._result_classifier(process_result)
-            if status not in {
-                AdapterExecutionStatus.SUCCESS, AdapterExecutionStatus.FAILED,
-                AdapterExecutionStatus.UNKNOWN,
-            }:
+            classify = getattr(self._result_classifier, "classify", None)
+            status = (classify(process_result, classifier_context) if callable(classify)
+                      else self._result_classifier(process_result))
+            if status not in {AdapterExecutionStatus.SUCCESS, AdapterExecutionStatus.FAILED,
+                              AdapterExecutionStatus.UNKNOWN}:
                 raise ValueError("Result classifier returned an unsupported status.")
             detail = "Classified using the configured tool-specific result classifier."
-
         return AdapterExecutionResult(
             game=self._game_key, status=status, return_code=process_result.return_code,
             stdout=process_result.stdout, stderr=process_result.stderr, detail=detail,

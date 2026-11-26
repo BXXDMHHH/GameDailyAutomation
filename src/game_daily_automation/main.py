@@ -7,6 +7,9 @@ import sys
 from collections.abc import Sequence
 
 from game_daily_automation.adapters import BetterGIAdapter, March7thAdapter
+from game_daily_automation.adapters.result_classifiers import (
+    BetterGIResultClassifier, March7thResultClassifier,
+)
 from game_daily_automation.cli import build_parser
 from game_daily_automation.config.loader import ConfigError, load_config
 from game_daily_automation.core.orchestrator import DailyOrchestrator
@@ -46,8 +49,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         with SingleInstanceLock(lock_path):
             store = SQLiteStateStore(config.storage.database_file_path)
             store.initialize()
-            # A prior process may have exited while an attempt was RUNNING.
-            # Convert that ambiguous state to UNKNOWN; never replay it blindly.
             recovered = store.recover_interrupted()
             if recovered:
                 logger.warning(
@@ -71,14 +72,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             retry = RetryManager(
                 store,
                 retry_delay_seconds=config.execution.retry_delay_seconds,
-                # Safety remains disabled until tool-specific failure evidence
-                # has been verified and explicitly configured.
+                # Keep automatic retries disabled until safe retry rules have
+                # separate, tool-specific evidence and explicit approval.
                 is_session_unlocked=guard.can_run,
             )
             orchestrator = DailyOrchestrator(
                 store,
-                BetterGIAdapter(config.bettergi),
-                March7thAdapter(config.march7th),
+                BetterGIAdapter(
+                    config.bettergi,
+                    result_classifier=BetterGIResultClassifier(config.bettergi.result_log_file),
+                ),
+                March7thAdapter(
+                    config.march7th,
+                    result_classifier=March7thResultClassifier(),
+                ),
                 schedule_time=config.schedule.time,
                 retry_manager=retry,
                 is_session_unlocked=guard.can_run,

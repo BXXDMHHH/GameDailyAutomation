@@ -65,6 +65,7 @@ class GameToolConfig:
     arguments: tuple[str, ...] = ()
     version_arguments: tuple[str, ...] = ()
     timeout_seconds: int = 7200
+    result_log_file: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,7 +124,7 @@ def _game_tool(data: dict[str, Any], name: str) -> GameToolConfig:
     _keys(
         data,
         {"enabled", "executable", "working_directory", "arguments",
-         "version_arguments", "timeout_seconds"},
+         "version_arguments", "timeout_seconds", "result_log_file"},
         section,
     )
     return GameToolConfig(
@@ -133,6 +134,7 @@ def _game_tool(data: dict[str, Any], name: str) -> GameToolConfig:
         arguments=_string_array(data, "arguments", section),
         version_arguments=_string_array(data, "version_arguments", section),
         timeout_seconds=_positive_int(data, "timeout_seconds", 7200, section),
+        result_log_file=_string(data, "result_log_file", "", section),
     )
 
 
@@ -201,8 +203,7 @@ def load_config(config_path: str | Path) -> AppConfig:
             "%LOCALAPPDATA%/GameDailyAutomation/data.sqlite3", "storage"
         ),
         log_directory=_string(
-            storage_data, "log_directory",
-            "%LOCALAPPDATA%/GameDailyAutomation/logs", "storage"
+            storage_data, "log_directory", "%LOCALAPPDATA%/GameDailyAutomation/logs", "storage"
         ),
     )
     bettergi = _game_tool(_object(games_data.get("bettergi", {}), "games.bettergi"), "bettergi")
