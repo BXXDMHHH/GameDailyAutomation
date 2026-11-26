@@ -50,6 +50,10 @@ class ProcessRunnerTests(unittest.TestCase):
         with patch(
             "game_daily_automation.infrastructure.process_runner.os.killpg",
             create=True,
+        ), patch(
+            "game_daily_automation.infrastructure.process_runner.signal.SIGKILL",
+            9,
+            create=True,
         ):
             result = ProcessRunner(cleanup_timeout_seconds=0.01).run(
                 "tool.exe", [], timeout_seconds=1
