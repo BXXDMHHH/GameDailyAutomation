@@ -57,6 +57,13 @@ class RetrySessionGuardTests(unittest.TestCase):
         self.assertEqual(result.status, ExecutionStatus.INTERRUPTED)
         self.assertEqual(failing.calls, 1)
         self.assertEqual(len(self.store.list_game_attempts(self.day)), 1)
+        # The safe retry decision survives a lock during the retry delay.
+        resumed = RetryManager(self.store, is_session_unlocked=lambda: True)
+        success = FakeAdapter()
+        resumed_result = resumed.run_game(self.day, "bettergi", success)
+        self.assertEqual(resumed_result.status, ExecutionStatus.SUCCESS)
+        self.assertEqual(resumed_result.attempts, 2)
+        self.assertEqual(success.calls, 1)
 
 
 if __name__ == "__main__":

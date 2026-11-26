@@ -71,7 +71,10 @@ class RetryManager:
         manually_approved_retry = bool(
             existing and existing.status == ExecutionStatus.FAILED
             and existing.error_message
-            and "[human_safe_to_retry=true]" in existing.error_message
+            and (
+                "[human_safe_to_retry=true]" in existing.error_message
+                or "[safe_to_retry_approved=true]" in existing.error_message
+            )
         )
         if existing and existing.status == ExecutionStatus.FAILED and not manually_approved_retry:
             return GameRunSummary(game_name, ExecutionStatus.FAILED, existing.attempt_count, "Previous failure requires an explicit human safe-to-retry approval.")
@@ -105,15 +108,25 @@ class RetryManager:
 
             last_result = result
             last_status = self._map_status(result.status)
+            safe_retry_approved = False
+            if last_status == ExecutionStatus.FAILED and attempts < self._max_attempts:
+                try:
+                    safe_retry_approved = bool(self._is_safe(result))
+                except Exception:
+                    safe_retry_approved = False
+            error_message = result.detail
+            if safe_retry_approved:
+                marker = "[safe_to_retry_approved=true]"
+                error_message = f"{error_message or ''} {marker}".strip()
             self._store.finish_attempt(
                 execution_date, game_name, last_status,
-                error_message=result.detail,
+                error_message=error_message,
                 process_id=result.process_id,
                 return_code=result.return_code,
             )
             if last_status != ExecutionStatus.FAILED:
                 return GameRunSummary(game_name, last_status, attempts, result.detail)
-            if attempts >= self._max_attempts or not self._is_safe(result):
+            if attempts >= self._max_attempts or not safe_retry_approved:
                 return GameRunSummary(game_name, ExecutionStatus.FAILED, attempts, result.detail)
             if self._delay:
                 self._sleep(self._delay)
