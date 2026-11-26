@@ -386,6 +386,8 @@ class _Transaction:
                 self.connection.commit()
             else:
                 self.connection.rollback()
+                if exc_type is not None and issubclass(exc_type, sqlite3.Error):
+                    raise StatePersistenceError(f"SQLite statement failed: {exc}") from exc
         except sqlite3.Error as db_exc:
             self.connection.rollback()
             raise StatePersistenceError(f"SQLite transaction failed: {db_exc}") from db_exc
