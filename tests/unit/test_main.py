@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from game_daily_automation.infrastructure.logging_config import LOGGER_NAME
 from game_daily_automation.main import main
 
 
@@ -27,10 +29,18 @@ class MainTests(unittest.TestCase):
                 json.dumps({"storage": {"log_directory": str(root / "logs")}}),
                 encoding="utf-8",
             )
-            with patch("sys.stderr", io.StringIO()):
-                result = main(["--config", str(config_file)])
-            self.assertEqual(result, 0)
-            self.assertTrue((root / "logs" / "gamedaily.log").exists())
+            try:
+                with patch("sys.stderr", io.StringIO()):
+                    result = main(["--config", str(config_file)])
+                self.assertEqual(result, 0)
+                self.assertTrue((root / "logs" / "gamedaily.log").exists())
+            finally:
+                # main() configures a file handler; release it before the
+                # temporary directory is removed on Windows.
+                logger = logging.getLogger(LOGGER_NAME)
+                for handler in logger.handlers[:]:
+                    logger.removeHandler(handler)
+                    handler.close()
 
 
 if __name__ == "__main__":
