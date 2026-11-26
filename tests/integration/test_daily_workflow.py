@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
+import logging
 import tempfile
+import sys
 import unittest
+from unittest.mock import patch
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -14,7 +18,10 @@ from game_daily_automation.domain.enums import (
 )
 from game_daily_automation.domain.models import AdapterExecutionResult, ProcessResult
 from game_daily_automation.exceptions import StatePersistenceError
+from game_daily_automation.infrastructure.logging_config import LOGGER_NAME
+from game_daily_automation.infrastructure.process_runner import ProcessRunner
 from game_daily_automation.infrastructure.state_store import SQLiteStateStore
+from game_daily_automation.main import main
 
 
 class ScriptedAdapter:
@@ -157,6 +164,25 @@ class DailyWorkflowIntegrationTests(unittest.TestCase):
         self.assertEqual(runner.calls, 1)
         self.assertEqual(m7.calls, 1)
         self.assertEqual(self.store.get_game_state(self.day, "bettergi").status, ExecutionStatus.UNKNOWN)
+
+    def test_real_process_start_failure_is_detected(self):
+        missing = self.root / "definitely-not-installed-tool.exe"
+        result = ProcessRunner(cleanup_timeout_seconds=1).run(
+            missing, [], timeout_seconds=2
+        )
+        self.assertFalse(result.started)
+        self.assertIn("FileNotFoundError", result.start_error or "")
+
+    def test_real_python_child_timeout_is_terminated(self):
+        runner = ProcessRunner(cleanup_timeout_seconds=1)
+        result = runner.run(
+            sys.executable,
+            ["-c", "import time; time.sleep(10)"],
+            timeout_seconds=0.25,
+        )
+        self.assertTrue(result.started)
+        self.assertTrue(result.timed_out)
+        self.assertLess(result.duration_seconds, 6.0)
 
     def test_unknown_result_is_not_retried(self):
         bg = ScriptedAdapter(GameKey.BETTERGI, AdapterExecutionStatus.UNKNOWN)
