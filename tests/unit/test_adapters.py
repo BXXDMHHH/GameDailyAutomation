@@ -81,12 +81,12 @@ class AdapterTests(unittest.TestCase):
         ))
         self.assertEqual(result.status, AdapterExecutionStatus.START_FAILED)
 
-    def test_timeout_is_unknown(self) -> None:
+    def test_timeout_has_distinct_process_status(self) -> None:
         adapter = March7thAdapter(GameToolConfig())
         result = adapter.identify_result(ProcessResult(
             started=True, command=("m7a.exe",), return_code=None, timed_out=True
         ))
-        self.assertEqual(result.status, AdapterExecutionStatus.UNKNOWN)
+        self.assertEqual(result.status, AdapterExecutionStatus.TIMEOUT)
 
     def test_version_probe_runs_only_when_explicitly_configured(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
